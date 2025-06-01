@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const mongoose = require('mongoose');
 const { EasyOCR } = require('node-easyocr');
+const express = require('express');
 require('dotenv').config();
 
 const imageDropHandler = require('./handlers/imageDropHandler');
@@ -14,6 +15,7 @@ const KARUTA_ID = '646937666251915264';
 // Khởi tạo EasyOCR
 const ocr = new EasyOCR();
 
+// Khởi tạo Discord client
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -34,13 +36,25 @@ const currentProcessing = {
 
 let botStartTime = null;
 
+// EXPRESS SERVER - để giữ bot luôn hoạt động
+const app = express();
+const PORT = process.env.PORT || 9704;
+
+app.get('/', (req, res) => {
+    res.send('🤖 Wishlist Bot is running!');
+});
+
+app.listen(PORT, () => {
+    console.log(`🌐 Express server is listening on port ${PORT}`);
+});
+
+// Khi bot Discord sẵn sàng
 client.once('ready', async () => {
     console.log(`🤖 Bot online as ${client.user.tag}`);
-    botStartTime = new Date(); // Lưu thời gian bot khởi động
+    botStartTime = new Date();
     await mongoose.connect(process.env.MONGO_URI);
     console.log('✅ Connected to MongoDB');
     await importCharacters();
-    // Khởi tạo EasyOCR
     try {
         await ocr.init(['en']);
         console.log('✅ EasyOCR initialized');
@@ -52,7 +66,6 @@ client.once('ready', async () => {
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot && message.author.id === KARUTA_ID) {
-        // Chỉ xử lý tin nhắn được gửi sau khi bot khởi động
         if (message.createdTimestamp > botStartTime.getTime()) {
             await imageDropHandler(message, ocr);
             await embedHandlers(message, currentProcessing, pendingLookups, pendingSchedules);
@@ -63,13 +76,11 @@ client.on('messageCreate', async (message) => {
 });
 
 client.on('messageUpdate', async (oldMessage, newMessage) => {
-    // Chỉ xử lý tin nhắn được cập nhật sau khi bot khởi động
     if (newMessage.createdTimestamp > botStartTime.getTime()) {
         await messageUpdateHandler(newMessage, currentProcessing);
     }
 });
 
-// Đóng EasyOCR khi bot tắt
 process.on('SIGINT', async () => {
     try {
         await ocr.close();
