@@ -1,6 +1,5 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const mongoose = require('mongoose');
-const { EasyOCR } = require('node-easyocr');
 const express = require('express');
 require('dotenv').config();
 
@@ -11,9 +10,6 @@ const messageUpdateHandler = require('./handlers/messageUpdateHandler');
 const importCharacters = require('./utils/importCharacters');
 
 const KARUTA_ID = '646937666251915264';
-
-// Khởi tạo EasyOCR
-const ocr = new EasyOCR();
 
 // Khởi tạo Discord client
 const client = new Client({
@@ -55,19 +51,13 @@ client.once('ready', async () => {
     await mongoose.connect(process.env.MONGO_URI);
     console.log('✅ Connected to MongoDB');
     await importCharacters();
-    try {
-        await ocr.init(['en']);
-        console.log('✅ EasyOCR initialized');
-    } catch (error) {
-        console.error('❌ Failed to initialize EasyOCR:', error.message);
-        process.exit(1);
-    }
+    console.log('✅ Tesseract ready (no initialization needed)');
 });
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot && message.author.id === KARUTA_ID) {
         if (message.createdTimestamp > botStartTime.getTime()) {
-            await imageDropHandler(message, ocr);
+            await imageDropHandler(message);
             await embedHandlers(message, currentProcessing, pendingLookups, pendingSchedules);
         }
     } else {
@@ -79,16 +69,6 @@ client.on('messageUpdate', async (oldMessage, newMessage) => {
     if (newMessage.createdTimestamp > botStartTime.getTime()) {
         await messageUpdateHandler(newMessage, currentProcessing);
     }
-});
-
-process.on('SIGINT', async () => {
-    try {
-        await ocr.close();
-        console.log('✅ EasyOCR closed');
-    } catch (error) {
-        console.error('❌ Error closing EasyOCR:', error.message);
-    }
-    process.exit();
 });
 
 client.login(process.env.BOT_TOKEN);
