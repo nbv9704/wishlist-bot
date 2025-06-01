@@ -47,7 +47,7 @@ module.exports = async (message) => {
                     .split('\n')
                     .map(text => text.trim())
                     .filter(text => text && !/^\d{4,}$/.test(text))
-                    .map(text => text.replace(/[)\»\|\}]/g, '')) // Loại bỏ ), », |, }
+                    .map(text => text.replace(/[)\»\|\};©~]/g, '')) // Loại bỏ ), », |, }, ;, ©, ~
                     .filter(text => text); // Loại bỏ các chuỗi rỗng sau khi lọc
 
                 resultsByPart.push(texts);
