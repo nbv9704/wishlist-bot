@@ -1,3 +1,4 @@
 node_modules/
 .env
 temp/
+sync.ps1
