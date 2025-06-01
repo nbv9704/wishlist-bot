@@ -41,10 +41,14 @@ module.exports = async (message) => {
                     oem: 3, // LSTM OCR engine
                     psm: 7 // Treat as a single text line
                 });
+
+                // Lọc bỏ các ký tự không mong muốn và xử lý văn bản
                 const texts = ocrData
                     .split('\n')
                     .map(text => text.trim())
-                    .filter(text => text && !/^\d{4,}$/.test(text));
+                    .filter(text => text && !/^\d{4,}$/.test(text))
+                    .map(text => text.replace(/[)\»\|\}]/g, '')) // Loại bỏ ), », |, }
+                    .filter(text => text); // Loại bỏ các chuỗi rỗng sau khi lọc
 
                 resultsByPart.push(texts);
 
@@ -61,9 +65,12 @@ module.exports = async (message) => {
                     continue;
                 }
 
-                const character = texts.join(' ');
+                const character = texts.join(' ').trim(); // Gộp văn bản và loại bỏ khoảng trắng thừa
 
-                const results = await Character.find({ character });
+                // Tìm nhân vật với tên đã được làm sạch
+                const results = await Character.find({ 
+                    character: { $regex: `^${character}$`, $options: 'i' } // Tìm kiếm không phân biệt hoa thường
+                });
 
                 if (results.length > 0) {
                     for (const result of results) {
