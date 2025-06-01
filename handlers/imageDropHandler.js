@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
-const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+const fetch = (...args) => import('node-fetch').then(({ default: target }) => target(...args));
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
@@ -34,6 +34,8 @@ module.exports = async (message) => {
 
                 await sharp(originalFilePath)
                     .extract({ left: crop.left, top: crop.top, width: crop.width, height: crop.height })
+                    .normalize() // Tăng độ tương phản
+                    .sharpen() // Làm sắc nét hình ảnh
                     .toFile(cropFilePath);
 
                 const ocrData = await tesseract.recognize(cropFilePath, {
@@ -47,7 +49,7 @@ module.exports = async (message) => {
                     .split('\n')
                     .map(text => text.trim())
                     .filter(text => text && !/^\d{4,}$/.test(text))
-                    .map(text => text.replace(/[)\»\|\};©~]/g, '')) // Loại bỏ ), », |, }, ;, ©, ~
+                    .map(text => text.replace(/[)\»\|\};©~—]/g, '')) // Loại bỏ ), », |, }, ;, ©, ~, —
                     .filter(text => text); // Loại bỏ các chuỗi rỗng sau khi lọc
 
                 resultsByPart.push(texts);
