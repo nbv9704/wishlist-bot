@@ -18,6 +18,9 @@ COPY . .
 # Cài đặt các thư viện Python
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Tải trước mô hình EasyOCR
+RUN python preload_models.py
+
 # Mở cổng cho Render
 ENV PORT=9704
 EXPOSE 9704

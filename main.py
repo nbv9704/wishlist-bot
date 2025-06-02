@@ -39,8 +39,13 @@ current_processing = {
     'schedule': {}
 }
 
-# Kết nối MongoDB
-mongo_client = pymongo.MongoClient(os.getenv('MONGO_URI'))
+# Kết nối MongoDB với giới hạn số kết nối
+mongo_client = pymongo.MongoClient(
+    os.getenv('MONGO_URI'),
+    maxPoolSize=5,  # Giới hạn số kết nối tối đa
+    connectTimeoutMS=30000,
+    socketTimeoutMS=30000
+)
 db = mongo_client['wishlist_bot']
 
 # HTTP server cho Render
@@ -80,6 +85,12 @@ async def on_message_edit(before, after):
     if bot_start_time is not None:  # Đảm bảo bot_start_time đã được khởi tạo
         await handle_message_update(after, current_processing, db, bot_start_time)
 
+# Đóng kết nối MongoDB khi bot dừng
+@bot.event
+async def on_disconnect():
+    mongo_client.close()
+    print("MongoDB connection closed")
+
 # Chạy bot và HTTP server
 async def main():
     # Khởi động HTTP server
@@ -88,4 +99,8 @@ async def main():
     await bot.start(os.getenv('BOT_TOKEN'))
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    finally:
+        mongo_client.close()  # Đảm bảo đóng kết nối MongoDB khi bot dừng
+        print("Bot stopped, MongoDB connection closed")

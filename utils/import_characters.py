@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 async def import_characters(db):
     file_path = os.path.join(os.path.dirname(__file__), '../characters.txt')
@@ -26,6 +27,7 @@ async def import_characters(db):
             print(f'⚠️ Missing or invalid data: {line}')
             continue
 
+        # Sử dụng cursor và đóng ngay sau khi dùng
         existing = db.characters.find_one({'character': character, 'series': series})
         if existing:
             if existing['wishlist'] != wishlist:
