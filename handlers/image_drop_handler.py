@@ -4,7 +4,6 @@ import os
 import shutil
 from PIL import Image
 import easyocr
-from models.character import Character
 
 async def handle_image_drop(message, db):
     if not message.attachments:
@@ -56,6 +55,7 @@ async def handle_image_drop(message, db):
                 continue
 
             character = ' '.join(texts).strip()
+            # Truy cập trực tiếp collection 'characters' thay vì sử dụng class Character
             results = db.characters.find({'character': {'$regex': f'^{character}$', '$options': 'i'}})
 
             found = False
