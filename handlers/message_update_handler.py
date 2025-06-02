@@ -1,7 +1,6 @@
 import discord
 import re
 from datetime import datetime
-from models.character import Character
 
 KARUTA_ID = 646937666251915264
 
