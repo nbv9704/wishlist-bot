@@ -10,14 +10,17 @@ async def handle_embeds(message, current_processing, pending_lookups, pending_sc
     valid_schedules = {k: t for k, t in pending_schedules.items() if k.startswith(key_prefix) and (now - t).total_seconds() < 10}
 
     if not valid_lookups and not valid_schedules:
+        print("No valid lookups or schedules, skipping embed handling")
         return
     if not message.embeds:
+        print("No embeds found in message")
         return
 
     embed = message.embeds[0]
     channel_id = str(message.channel.id)
 
     if embed.title == 'Character Results' and valid_lookups and embed.fields:
+        print("Processing 'Character Results' embed")
         raw_text = embed.fields[0].value
         all_lines = raw_text.split('\n')
         inserted, updated = 0, 0
@@ -39,12 +42,14 @@ async def handle_embeds(message, current_processing, pending_lookups, pending_sc
                     'last_updated': now
                 })
                 inserted += 1
+                print(f"Inserted new character: {character} ({series})")
             elif existing['wishlist'] != wishlist:
                 db.characters.update_one(
                     {'series': series, 'character': character},
                     {'$set': {'wishlist': wishlist, 'last_updated': now}}
                 )
                 updated += 1
+                print(f"Updated character: {character} ({series})")
 
         current_processing['lookup'][channel_id] = {
             'embed_message_id': str(message.id),
@@ -63,8 +68,10 @@ async def handle_embeds(message, current_processing, pending_lookups, pending_sc
             current_processing['lookup'][channel_id]['report_message_id'] = str(report_msg.id)
 
         await report_msg.edit(content=f'✅ Data imported successfully: {inserted} new, {updated} updated')
+        print(f"Updated report message: {inserted} new, {updated} updated")
 
     elif embed.title == 'Character Lookup' and embed.description:
+        print("Processing 'Character Lookup' embed")
         lines = [line.strip() for line in embed.description.split('\n') if line.strip()]
         character_data = {}
 
@@ -77,10 +84,12 @@ async def handle_embeds(message, current_processing, pending_lookups, pending_sc
                     character_data[key.lower()] = value
 
         if not all(k in character_data for k in ['character', 'series', 'wishlisted']):
+            print("Incomplete character data in 'Character Lookup'")
             return
 
         wishlist_num = int(character_data['wishlisted'].replace(',', ''))
         if not wishlist_num:
+            print("Invalid wishlist number in 'Character Lookup'")
             return
 
         existing = db.characters.find_one({
@@ -95,14 +104,17 @@ async def handle_embeds(message, current_processing, pending_lookups, pending_sc
                 'last_updated': now
             })
             await message.channel.send(f"✅ Successfully added new data for **{character_data['character']}** ({character_data['series']})")
+            print(f"Added new character: {character_data['character']} ({character_data['series']})")
         elif existing['wishlist'] != wishlist_num:
             db.characters.update_one(
                 {'series': character_data['series'], 'character': character_data['character']},
                 {'$set': {'wishlist': wishlist_num, 'last_updated': now}}
             )
             await message.channel.send(f"✅ Successfully updated wishlist for **{character_data['character']}** ({character_data['series']})")
+            print(f"Updated wishlist for character: {character_data['character']} ({character_data['series']})")
 
     elif embed.title == 'Card Release Schedule' and valid_schedules and embed.description:
+        print("Processing 'Card Release Schedule' embed")
         lines = [line.strip() for line in embed.description.split('\n') if line.strip()]
         inserted, updated = 0, 0
 
@@ -128,12 +140,14 @@ async def handle_embeds(message, current_processing, pending_lookups, pending_sc
                     'last_updated': now
                 })
                 inserted += 1
+                print(f"Inserted new character from schedule: {character} ({series})")
             elif existing['wishlist'] != wishlist:
                 db.characters.update_one(
                     {'character': character, 'series': series},
                     {'$set': {'wishlist': wishlist, 'last_updated': now}}
                 )
                 updated += 1
+                print(f"Updated character from schedule: {character} ({series})")
 
         current_processing['schedule'][channel_id] = {
             'embed_message_id': str(message.id),
@@ -152,3 +166,4 @@ async def handle_embeds(message, current_processing, pending_lookups, pending_sc
             current_processing['schedule'][channel_id]['report_message_id'] = str(report_msg.id)
 
         await report_msg.edit(content=f'✅ Data imported successfully: {inserted} new, {updated} updated')
+        print(f"Updated schedule report message: {inserted} new, {updated} updated")

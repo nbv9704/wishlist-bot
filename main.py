@@ -5,11 +5,19 @@ from dotenv import load_dotenv
 import os
 from aiohttp import web
 import asyncio
+import logging
 from handlers.image_drop_handler import handle_image_drop
 from handlers.embed_handlers import handle_embeds
 from handlers.command_handlers import handle_commands
 from handlers.message_update_handler import handle_message_update
 from utils.import_characters import import_characters
+
+# Cấu hình logging để tắt log không mong muốn
+logging.basicConfig(level=logging.WARNING)  # Chỉ hiển thị log từ WARNING trở lên
+logging.getLogger('discord').setLevel(logging.WARNING)  # Tắt log INFO từ discord.py
+logging.getLogger('aiohttp').setLevel(logging.WARNING)  # Tắt log INFO từ aiohttp
+logging.getLogger('pymongo').setLevel(logging.WARNING)  # Tắt log INFO từ pymongo
+logging.getLogger('easyocr').setLevel(logging.WARNING)  # Tắt log từ easyocr
 
 # Tải biến môi trường
 load_dotenv()
@@ -60,8 +68,8 @@ async def on_ready():
 @bot.event
 async def on_message(message):
     if message.author.bot and message.author.id == KARUTA_ID:
-        if message.created_at > bot_start_time:
-            await handle_image_drop(message, db)
+        if bot_start_time is not None:  # Đảm bảo bot_start_time đã được khởi tạo
+            await handle_image_drop(message, db, bot_start_time)
             await handle_embeds(message, current_processing, pending_lookups, pending_schedules, db)
     else:
         await handle_commands(message, pending_lookups, pending_schedules)
@@ -69,8 +77,8 @@ async def on_message(message):
 
 @bot.event
 async def on_message_edit(before, after):
-    if after.created_at > bot_start_time:
-        await handle_message_update(after, current_processing, db)
+    if bot_start_time is not None:  # Đảm bảo bot_start_time đã được khởi tạo
+        await handle_message_update(after, current_processing, db, bot_start_time)
 
 # Chạy bot và HTTP server
 async def main():
