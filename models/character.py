@@ -1,10 +1,5 @@
-const mongoose = require('mongoose');
+from pymongo import MongoClient
 
-const characterSchema = new mongoose.Schema({
-  character: String,
-  series: String,
-  wishlist: Number,
-  lastUpdated: Date
-});
-
-module.exports = mongoose.model('Character', characterSchema);
+# Không cần schema như Mongoose, pymongo sử dụng trực tiếp collection
+def get_character_collection(db):
+    return db.characters

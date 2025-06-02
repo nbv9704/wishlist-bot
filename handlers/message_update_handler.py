@@ -1,136 +1,156 @@
-const Character = require('../models/Character');
+import discord
+import re
+from datetime import datetime
+from models.character import Character
 
-const KARUTA_ID = '646937666251915264';
+KARUTA_ID = 646937666251915264
 
-module.exports = async (newMessage, currentProcessing) => {
-    if (!(newMessage.author?.bot && newMessage.author.id === KARUTA_ID)) return;
-    if (!newMessage.embeds || newMessage.embeds.length === 0) return;
-    if (!['Character Results', 'Character Lookup', 'Card Release Schedule'].includes(newMessage.embeds[0].title)) return;
+async def handle_message_update(new_message, current_processing, db):
+    if not (new_message.author.bot and new_message.author.id == KARUTA_ID):
+        return
+    if not new_message.embeds:
+        return
+    embed = new_message.embeds[0]
+    if embed.title not in ['Character Results', 'Character Lookup', 'Card Release Schedule']:
+        return
 
-    const embed = newMessage.embeds[0];
-    const channel = newMessage.channel;
+    channel_id = str(new_message.channel.id)
+    now = datetime.utcnow()
 
-    if (embed.title === 'Character Results' && embed.fields && embed.fields.length > 0) {
-        const state = currentProcessing.lookup.get(channel.id);
-        if (!state || state.embedMessageId !== newMessage.id) return;
+    if embed.title == 'Character Results' and embed.fields:
+        state = current_processing['lookup'].get(channel_id, {})
+        if not state or state.get('embed_message_id') != str(new_message.id):
+            return
 
-        const rawText = embed.fields[0].value;
-        const allLines = rawText.split('\n');
+        raw_text = embed.fields[0].value
+        all_lines = raw_text.split('\n')
+        inserted, updated = 0, 0
 
-        let updated = 0, inserted = 0;
-        for (const line of allLines) {
-            const match = line.match(/`(\d+)`\.\s+`♡(\d+)`\s+·\s+(.*?)\s+·\s+\*\*(.+?)\*\*/);
-            if (!match) continue;
-            const [, , wishlistStr, series, character] = match;
-            const wishlist = parseInt(wishlistStr);
-            const nowDate = new Date();
+        for line in all_lines:
+            match = re.match(r'`\d+`.\s+`♡(\d+)`\s+·\s+(.+?)\s+·\s+\*\*(.+?)\*\*', line)
+            if not match:
+                continue
+            wishlist = int(match.group(1))
+            series = match.group(2)
+            character = match.group(3)
 
-            const existing = await Character.findOne({ series, character });
-            if (!existing) {
-                await Character.create({ series, character, wishlist, lastUpdated: nowDate });
-                inserted++;
-            } else if (existing.wishlist !== wishlist) {
-                existing.wishlist = wishlist;
-                existing.lastUpdated = nowDate;
-                await existing.save();
-                updated++;
-            }
-        }
+            existing = db.characters.find_one({'series': series, 'character': character})
+            if not existing:
+                db.characters.insert_one({
+                    'series': series,
+                    'character': character,
+                    'wishlist': wishlist,
+                    'last_updated': now
+                })
+                inserted += 1
+            elif existing['wishlist'] != wishlist:
+                db.characters.update_one(
+                    {'series': series, 'character': character},
+                    {'$set': {'wishlist': wishlist, 'last_updated': now}}
+                )
+                updated += 1
 
-        if (inserted || updated) {
-            let reportMsg = null;
-            if (state.reportMessageId) {
-                reportMsg = await channel.messages.fetch(state.reportMessageId).catch(() => null);
-            }
-            if (!reportMsg) {
-                reportMsg = await channel.send('⏳ Character data is loading...');
-                currentProcessing.lookup.set(channel.id, { embedMessageId: newMessage.id, reportMessageId: reportMsg.id });
-            }
-            await reportMsg.edit(`✅ Data imported successfully: ${inserted} new, ${updated} updated`);
-        }
-    } else if (embed.title === 'Character Lookup' && embed.description) {
-        const lines = embed.description.split('\n').map(l => l.trim()).filter(l => l);
-        let characterData = {};
-
-        for (const line of lines) {
-            const parts = line.split('·').map(p => p.trim());
-            if (parts.length === 2) {
-                const key = parts[0];
-                let value = parts[1];
-                value = value.replace(/^\*\*(.+)\*\*$/, '$1');
-
-                if (['Character', 'Series', 'Wishlisted'].includes(key)) {
-                    characterData[key.toLowerCase()] = value;
+        if inserted or updated:
+            report_msg_id = state.get('report_message_id')
+            report_msg = None
+            if report_msg_id:
+                try:
+                    report_msg = await new_message.channel.fetch_message(report_msg_id)
+                except:
+                    pass
+            if not report_msg:
+                report_msg = await new_message.channel.send('⏳ Character data is loading...')
+                current_processing['lookup'][channel_id] = {
+                    'embed_message_id': str(new_message.id),
+                    'report_message_id': str(report_msg.id)
                 }
-            }
-        }
+            await report_msg.edit(content=f'✅ Data imported successfully: {inserted} new, {updated} updated')
 
-        if (!characterData.character || !characterData.series || !characterData.wishlisted) return;
+    elif embed.title == 'Character Lookup' and embed.description:
+        lines = [line.strip() for line in embed.description.split('\n') if line.strip()]
+        character_data = {}
 
-        const wishlistNum = parseInt(characterData.wishlisted.replace(/,/g, ''));
-        if (isNaN(wishlistNum)) return;
+        for line in lines:
+            parts = [p.strip() for p in line.split('·')]
+            if len(parts) == 2:
+                key, value = parts
+                value = re.sub(r'^\*\*(.+)\*\*$', r'\1', value)
+                if key in ['Character', 'Series', 'Wishlisted']:
+                    character_data[key.lower()] = value
 
-        const nowDate = new Date();
+        if not all(k in character_data for k in ['character', 'series', 'wishlisted']):
+            return
 
-        const existing = await Character.findOne({ series: characterData.series, character: characterData.character });
-        if (!existing) {
-            await Character.create({
-                series: characterData.series,
-                character: characterData.character,
-                wishlist: wishlistNum,
-                lastUpdated: nowDate
-            });
-        } else {
-            if (existing.wishlist !== wishlistNum) {
-                existing.wishlist = wishlistNum;
-                existing.lastUpdated = nowDate;
-                await existing.save();
-            }
-        }
-    } else if (embed.title === 'Card Release Schedule' && embed.description) {
-        const state = currentProcessing.schedule.get(channel.id);
-        if (!state || state.embedMessageId !== newMessage.id) return;
+        wishlist_num = int(character_data['wishlisted'].replace(',', ''))
+        if not wishlist_num:
+            return
 
-        const lines = embed.description.split('\n').map(l => l.trim()).filter(l => l);
-        let inserted = 0, updated = 0;
+        existing = db.characters.find_one({
+            'series': character_data['series'],
+            'character': character_data['character']
+        })
+        if not existing:
+            db.characters.insert_one({
+                'series': character_data['series'],
+                'character': character_data['character'],
+                'wishlist': wishlist_num,
+                'last_updated': now
+            })
+        elif existing['wishlist'] != wishlist_num:
+            db.characters.update_one(
+                {'series': character_data['series'], 'character': character_data['character']},
+                {'$set': {'wishlist': wishlist_num, 'last_updated': now}}
+            )
 
-        for (const line of lines) {
-            const parts = line.split('·').map(p => p.trim());
-            if (parts.length < 5) continue;
+    elif embed.title == 'Card Release Schedule' and embed.description:
+        state = current_processing['schedule'].get(channel_id, {})
+        if not state or state.get('embed_message_id') != str(new_message.id):
+            return
 
-            const wishlistStr = parts[0].replace(/[^0-9]/g, '');
-            const wishlist = parseInt(wishlistStr);
+        lines = [line.strip() for line in embed.description.split('\n') if line.strip()]
+        inserted, updated = 0, 0
 
-            const characterMatch = parts[3].match(/^\*\*(.+)\*\*$/);
-            const character = characterMatch ? characterMatch[1] : parts[3];
-            const series = parts[4];
+        for line in lines:
+            parts = [p.strip() for p in line.split('·')]
+            if len(parts) < 5:
+                continue
 
-            if (!character || !series || isNaN(wishlist)) continue;
+            wishlist = int(parts[0].replace(',', ''))
+            character_match = re.match(r'^\*\*(.+)\*\*$', parts[3])
+            character = character_match.group(1) if character_match else parts[3]
+            series = parts[4]
 
-            const nowDate = new Date();
+            if not character or not series or not wishlist:
+                continue
 
-            const existing = await Character.findOne({ character, series });
-            if (!existing) {
-                await Character.create({ character, series, wishlist, lastUpdated: nowDate });
-                inserted++;
-            } else if (existing.wishlist !== wishlist) {
-                existing.wishlist = wishlist;
-                existing.lastUpdated = nowDate;
-                await existing.save();
-                updated++;
-            }
-        }
+            existing = db.characters.find_one({'character': character, 'series': series})
+            if not existing:
+                db.characters.insert_one({
+                    'character': character,
+                    'series': series,
+                    'wishlist': wishlist,
+                    'last_updated': now
+                })
+                inserted += 1
+            elif existing['wishlist'] != wishlist:
+                db.characters.update_one(
+                    {'character': character, 'series': series},
+                    {'$set': {'wishlist': wishlist, 'last_updated': now}}
+                )
+                updated += 1
 
-        if (inserted || updated) {
-            let reportMsg = null;
-            if (state.reportMessageId) {
-                reportMsg = await channel.messages.fetch(state.reportMessageId).catch(() => null);
-            }
-            if (!reportMsg) {
-                reportMsg = await channel.send('⏳ Schedule data is loading...');
-                currentProcessing.schedule.set(channel.id, { embedMessageId: newMessage.id, reportMessageId: reportMsg.id });
-            }
-            await reportMsg.edit(`✅ Data imported successfully: ${inserted} new, ${updated} updated`);
-        }
-    }
-};
+        if inserted or updated:
+            report_msg_id = state.get('report_message_id')
+            report_msg = None
+            if report_msg_id:
+                try:
+                    report_msg = await new_message.channel.fetch_message(report_msg_id)
+                except:
+                    pass
+            if not report_msg:
+                report_msg = await new_message.channel.send('⏳ Schedule data is loading...')
+                current_processing['schedule'][channel_id] = {
+                    'embed_message_id': str(new_message.id),
+                    'report_message_id': str(report_msg.id)
+                }
+            await report_msg.edit(content=f'✅ Data imported successfully: {inserted} new, {updated} updated')

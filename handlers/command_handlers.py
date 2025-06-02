@@ -1,22 +1,20 @@
-const { PermissionsBitField } = require('discord.js');
+from datetime import datetime
 
-module.exports = (message, pendingLookups, pendingSchedules) => {
-    if (message.author.bot) return;
+async def handle_commands(message, pending_lookups, pending_schedules):
+    if message.author.bot:
+        return
 
-    const contentLower = message.content.toLowerCase();
-    if (contentLower.startsWith('klu') || contentLower.startsWith('k!lookup')) {
-        const member = message.member ?? message.guild.members.fetch(message.author.id);
-        if (!member.permissions.has(PermissionsBitField.Flags.CreateInstantInvite)) return;
+    content_lower = message.content.lower()
+    key = f'{message.channel.id}-{message.author.id}'
 
-        const key = `${message.channel.id}-${message.author.id}`;
-        pendingLookups.set(key, Date.now());
-        setTimeout(() => pendingLookups.delete(key), 15000);
-    } else if (contentLower.startsWith('kschedule') || contentLower.startsWith('k!schedule')) {
-        const member = message.member ?? message.guild.members.fetch(message.author.id);
-        if (!member.permissions.has(PermissionsBitField.Flags.CreateInstantInvite)) return;
+    if content_lower.startswith(('klu', 'k!lookup')):
+        if not message.author.permissions_in(message.channel).create_instant_invite:
+            return
+        pending_lookups[key] = datetime.utcnow()
+        bot.loop.call_later(15, lambda: pending_lookups.pop(key, None))
 
-        const key = `${message.channel.id}-${message.author.id}`;
-        pendingSchedules.set(key, Date.now());
-        setTimeout(() => pendingSchedules.delete(key), 15000);
-    }
-};
+    elif content_lower.startswith(('kschedule', 'k!schedule')):
+        if not message.author.permissions_in(message.channel).create_instant_invite:
+            return
+        pending_schedules[key] = datetime.utcnow()
+        bot.loop.call_later(15, lambda: pending_schedules.pop(key, None))

@@ -1,54 +1,50 @@
-const fs = require('fs');
-const path = require('path');
-const Character = require('../models/Character');
+import os
 
-module.exports = async () => {
-    const filePath = path.join(__dirname, '../characters.txt');
-    if (!fs.existsSync(filePath)) {
-        console.error('⚠️ File characters.txt does not exist');
-        return;
-    }
+async def import_characters(db):
+    file_path = os.path.join(os.path.dirname(__file__), '../characters.txt')
+    if not os.path.exists(file_path):
+        print('⚠️ File characters.txt does not exist')
+        return
 
-    const lines = fs.readFileSync(filePath, 'utf-8')
-        .split('\n')
-        .map(line => line.trim().replace(/,+$/, ''))
-        .filter(line => line);
+    with open(file_path, 'r', encoding='utf-8') as f:
+        lines = [line.strip().rstrip(',') for line in f if line.strip()]
 
-    let inserted = 0, updated = 0;
+    inserted, updated = 0, 0
 
-    for (const line of lines) {
-        const parts = line.split('·').map(part => part.trim());
-        if (parts.length !== 3) {
-            console.warn(`❌ Invalid line: ${line}`);
-            continue;
-        }
+    for line in lines:
+        parts = [part.strip() for part in line.split('·')]
+        if len(parts) != 3:
+            print(f'❌ Invalid line: {line}')
+            continue
 
-        const wishlistStr = parts[0].replace(/^♡/, '').replace(/,/g, '').trim();
-        const wishlist = parseInt(wishlistStr);
-        const series = parts[1];
-        const character = parts[2];
+        wishlist_str = parts[0].replace('♡', '').replace(',', '').strip()
+        wishlist = int(wishlist_str)
+        series = parts[1]
+        character = parts[2]
 
-        if (!character || !series || isNaN(wishlist)) {
-            console.warn(`⚠️ Missing or invalid data: ${line}`);
-            continue;
-        }
+        if not character or not series or not wishlist:
+            print(f'⚠️ Missing or invalid data: {line}')
+            continue
 
-        const existing = await Character.findOne({ character, series });
-        if (existing) {
-            if (existing.wishlist !== wishlist) {
-                existing.wishlist = wishlist;
-                await existing.save();
-                console.log(`🔁 Updated wishlist: ${character} (${series})`);
-                updated++;
-            } else {
-                console.log(`✔️ Already exists, no update needed: ${character} (${series})`);
-            }
-        } else {
-            await Character.create({ character, series, wishlist });
-            console.log(`✅ Successfully added: ${character} (${series})`);
-            inserted++;
-        }
-    }
+        existing = db.characters.find_one({'character': character, 'series': series})
+        if existing:
+            if existing['wishlist'] != wishlist:
+                db.characters.update_one(
+                    {'character': character, 'series': series},
+                    {'$set': {'wishlist': wishlist, 'last_updated': datetime.utcnow()}}
+                )
+                print(f'🔁 Updated wishlist: {character} ({series})')
+                updated += 1
+            else:
+                print(f'✔️ Already exists, no update needed: {character} ({series})')
+        else:
+            db.characters.insert_one({
+                'character': character,
+                'series': series,
+                'wishlist': wishlist,
+                'last_updated': datetime.utcnow()
+            })
+            print(f'✅ Successfully added: {character} ({series})')
+            inserted += 1
 
-    console.log(`🎉 Import completed: ${inserted} added, ${updated} updated`);
-};
+    print(f'🎉 Import completed: {inserted} added, {updated} updated')
