@@ -3,6 +3,8 @@ from discord.ext import commands
 import pymongo
 from dotenv import load_dotenv
 import os
+from aiohttp import web
+import asyncio
 from handlers.image_drop_handler import handle_image_drop
 from handlers.embed_handlers import handle_embeds
 from handlers.command_handlers import handle_commands
@@ -33,6 +35,20 @@ current_processing = {
 mongo_client = pymongo.MongoClient(os.getenv('MONGO_URI'))
 db = mongo_client['wishlist_bot']
 
+# HTTP server cho Render
+async def health_check(request):
+    return web.Response(text="🤖 Wishlist Bot is running!")
+
+async def start_http_server():
+    app = web.Application()
+    app.add_routes([web.get('/', health_check)])
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv('PORT', 8080))  # Lấy PORT từ biến môi trường, mặc định là 8080
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    print(f"🌐 HTTP server is running on port {port}")
+
 @bot.event
 async def on_ready():
     global bot_start_time
@@ -56,5 +72,12 @@ async def on_message_edit(before, after):
     if after.created_at > bot_start_time:
         await handle_message_update(after, current_processing, db)
 
-# Chạy bot
-bot.run(os.getenv('BOT_TOKEN'))
+# Chạy bot và HTTP server
+async def main():
+    # Khởi động HTTP server
+    await start_http_server()
+    # Chạy bot
+    await bot.start(os.getenv('BOT_TOKEN'))
+
+if __name__ == "__main__":
+    asyncio.run(main())
