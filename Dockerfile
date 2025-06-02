@@ -1,13 +1,11 @@
-# Sử dụng image Python
-FROM python:3.10-slim
+# Sử dụng image Python Alpine nhẹ hơn
+FROM python:3.10-alpine
 
 # Cài đặt các phụ thuộc hệ thống
-RUN apt-get update && \
-    apt-get install -y \
+RUN apk add --no-cache \
     libgl1-mesa-glx \
-    libglib2.0-0 \
-    && apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    libglib \
+    && rm -rf /var/cache/apk/*
 
 # Thiết lập thư mục làm việc
 WORKDIR /app
@@ -22,8 +20,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN python preload_models.py
 
 # Mở cổng cho Render
-ENV PORT=9704
-EXPOSE 9704
+ENV PORT=8080
+EXPOSE 8080
 
 # Chạy bot
 CMD ["python", "main.py"]

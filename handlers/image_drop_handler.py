@@ -5,10 +5,11 @@ import shutil
 from PIL import Image
 import easyocr
 import logging
+import gc
 
 # Khởi tạo EasyOCR Reader toàn cục để tránh tải lại mô hình nhiều lần
 logging.getLogger('easyocr').setLevel(logging.WARNING)  # Tắt log từ easyocr
-READER = easyocr.Reader(['en'], verbose=False)  # Tắt log từ EasyOCR
+READER = easyocr.Reader(['en'], verbose=False, gpu=False)  # Tắt GPU để giảm bộ nhớ
 
 # Kiểm tra biến môi trường DEBUG để bật/tắt log
 DEBUG = os.getenv('DEBUG', 'false').lower() == 'true'
@@ -50,6 +51,15 @@ async def handle_image_drop(message, db, bot_start_time):
             shutil.copyfileobj(response.raw, f)
         log(f"Image downloaded and saved to: {original_file_path}")
 
+        # Kiểm tra kích thước ảnh trước khi xử lý
+        with Image.open(original_file_path) as img:
+            img_width, img_height = img.size
+            log(f"Image size: width={img_width}, height={img_height}")
+            if img_width < 600 or img_height < 100:
+                log("Image too small to process")
+                os.unlink(original_file_path)
+                return
+
         # Vùng cắt cho 3 nhân vật (trái → giữa → phải)
         crops = [
             {'name': 'left (Character 1)', 'left': 40, 'top': 60, 'width': 210, 'height': 50},
@@ -66,8 +76,6 @@ async def handle_image_drop(message, db, bot_start_time):
             try:
                 with Image.open(original_file_path) as img:
                     # Kiểm tra kích thước ảnh
-                    img_width, img_height = img.size
-                    log(f"Image size: width={img_width}, height={img_height}")
                     if (crop['left'] + crop['width'] > img_width) or (crop['top'] + crop['height'] > img_height):
                         log(f"Invalid crop dimensions for {crop['name']}: exceeds image size")
                         description_lines.extend([f"Character {i}: `None`", ''])
@@ -115,7 +123,9 @@ async def handle_image_drop(message, db, bot_start_time):
                 log(f"Character {i} name extracted: {character}")
 
                 # Truy vấn database
-                results = list(db.characters.find({'character': {'$regex': f'^{character}$', '$options': 'i'}}))
+                cursor = db.characters.find({'character': {'$regex': f'^{character}$', '$options': 'i'}})
+                results = list(cursor)
+                cursor.close()  # Đóng cursor ngay sau khi dùng
                 log(f"Database query result for Character {i} ('{character}'): {results}")
 
                 found = False
@@ -128,6 +138,9 @@ async def handle_image_drop(message, db, bot_start_time):
                     description_lines.append(f"Character {i} - {character}: `None`")
                     log(f"Character {i}: No match found in database for character: {character}")
                 description_lines.append('')
+
+                # Giải phóng bộ nhớ sau mỗi lần xử lý
+                gc.collect()
 
             except Exception as crop_err:
                 log(f"Error processing crop {crop['name']}: {crop_err}")

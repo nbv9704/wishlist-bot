@@ -7,9 +7,6 @@ from aiohttp import web
 import asyncio
 import logging
 from handlers.image_drop_handler import handle_image_drop
-from handlers.embed_handlers import handle_embeds
-from handlers.command_handlers import handle_commands
-from handlers.message_update_handler import handle_message_update
 from utils.import_characters import import_characters
 
 # Cấu hình logging để tắt log không mong muốn
@@ -32,12 +29,6 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 KARUTA_ID = 646937666251915264
 bot_start_time = None
-pending_lookups = {}
-pending_schedules = {}
-current_processing = {
-    'lookup': {},
-    'schedule': {}
-}
 
 # Kết nối MongoDB với giới hạn số kết nối
 mongo_client = pymongo.MongoClient(
@@ -50,7 +41,7 @@ db = mongo_client['wishlist_bot']
 
 # HTTP server cho Render
 async def health_check(request):
-    return web.Response(text="🤖 Wishlist Bot is running!")
+    return web.Response(text="🤖 Wishlist Bot (kd) is running!")
 
 async def start_http_server():
     app = web.Application()
@@ -75,15 +66,7 @@ async def on_message(message):
     if message.author.bot and message.author.id == KARUTA_ID:
         if bot_start_time is not None:  # Đảm bảo bot_start_time đã được khởi tạo
             await handle_image_drop(message, db, bot_start_time)
-            await handle_embeds(message, current_processing, pending_lookups, pending_schedules, db)
-    else:
-        await handle_commands(message, pending_lookups, pending_schedules)
     await bot.process_commands(message)
-
-@bot.event
-async def on_message_edit(before, after):
-    if bot_start_time is not None:  # Đảm bảo bot_start_time đã được khởi tạo
-        await handle_message_update(after, current_processing, db, bot_start_time)
 
 # Đóng kết nối MongoDB khi bot dừng
 @bot.event
@@ -102,5 +85,5 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     finally:
-        mongo_client.close()  # Đảm bảo đóng kết nối MongoDB khi bot dừng
+        mongo_client.close()
         print("Bot stopped, MongoDB connection closed")
