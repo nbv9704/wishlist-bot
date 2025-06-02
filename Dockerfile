@@ -18,5 +18,9 @@ COPY . .
 # Cài đặt các thư viện Python
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Mở cổng cho Render
+ENV PORT=9704
+EXPOSE 9704
+
 # Chạy bot
 CMD ["python", "main.py"]
