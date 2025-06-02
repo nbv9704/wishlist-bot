@@ -1,10 +1,13 @@
 # Sử dụng image Python Alpine nhẹ hơn
 FROM python:3.10-alpine
 
-# Cài đặt các phụ thuộc hệ thống
+# Cài đặt các phụ thuộc hệ thống cho EasyOCR và OpenCV
 RUN apk add --no-cache \
-    libgl1-mesa-glx \
-    libglib \
+    mesa-gl \
+    glib \
+    libpng \
+    libjpeg-turbo \
+    freetype \
     && rm -rf /var/cache/apk/*
 
 # Thiết lập thư mục làm việc
