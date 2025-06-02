@@ -1,17 +1,16 @@
-# Sử dụng image Python Alpine nhẹ hơn
-FROM python:3.10-alpine
+# Sử dụng image Python Slim để đảm bảo tương thích với torch và torchvision
+FROM python:3.10-slim
 
-# Cài đặt các phụ thuộc hệ thống cho EasyOCR và OpenCV, cùng với công cụ biên dịch
-RUN apk add --no-cache \
-    mesa-gl \
-    glib \
-    libpng \
-    libjpeg-turbo \
-    freetype \
-    build-base \
-    gcc \
-    musl-dev \
-    && rm -rf /var/cache/apk/*
+# Cài đặt các phụ thuộc hệ thống cho EasyOCR và OpenCV
+RUN apt-get update && \
+    apt-get install -y \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libpng16-16 \
+    libjpeg62-turbo \
+    libfreetype6 \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Thiết lập thư mục làm việc
 WORKDIR /app
