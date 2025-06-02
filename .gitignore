@@ -1,4 +1,10 @@
-node_modules/
+_pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.egg-info/
 .env
-temp/
-sync.ps1
+.venv/
